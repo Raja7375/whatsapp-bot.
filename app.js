@@ -7,70 +7,58 @@ const twilio = require("twilio");
 const app = express();
 app.use(bodyParser.urlencoded({ extended: false }));
 
-// Twilio client
-const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+// Twilio credentials
+const accountSid = process.env.TWILIO_ACCOUNT_SID;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
+const client = twilio(accountSid, authToken);
 
-// Store sessions
 let sessions = {};
 
-// WhatsApp webhook route
+// ✅ Test route to verify Railway works
+app.get("/", (req, res) => {
+  res.send("🚀 WhatsApp Bot is running!");
+});
+
+// ✅ Route to send your template
+app.get("/send-template", (req, res) => {
+  client.messages
+    .create({
+      from: "whatsapp:+14155238886", // replace with your Twilio WhatsApp number
+      contentSid: process.env.TWILIO_TEMPLATE_SID,
+      contentVariables: JSON.stringify({ "1": "Customer" }),
+      to: "whatsapp:+919353984003" // replace with your test number
+    })
+    .then((message) => res.send("✅ Template sent: " + message.sid))
+    .catch((err) => res.status(500).send(err.message));
+});
+
+// ✅ WhatsApp webhook
 app.post("/whatsapp", (req, res) => {
+  const twiml = new MessagingResponse();
   const from = req.body.From;
   const body = req.body.Body ? req.body.Body.trim() : "";
-  const twiml = new MessagingResponse();
 
   if (!sessions[from]) {
     sessions[from] = { step: 1 };
     twiml.message("👋 Hello! Please enter your full name.");
+  } else if (sessions[from].step === 1) {
+    sessions[from].name = body;
+    sessions[from].step++;
+    twiml.message("📧 Thanks " + body + "! Please enter your email.");
+  } else if (sessions[from].step === 2) {
+    sessions[from].email = body;
+    sessions[from].step++;
+    twiml.message("📍 Great! Now enter your location.");
   } else {
-    const s = sessions[from];
-    switch (s.step) {
-      case 1:
-        s.name = body;
-        s.step++;
-        twiml.message(`Thanks, ${s.name}. Please provide your phone number.`);
-        break;
-      case 2:
-        s.phone = body;
-        s.step++;
-        twiml.message("Got it. Please share your email address.");
-        break;
-      case 3:
-        s.email = body;
-        s.step++;
-        twiml.message("What type of lawyer are you looking for? (Immigration, Real Estate, Family, Personal Injury, Wills & Estates, Business, Litigation)");
-        break;
-      case 4:
-        s.lawyerType = body;
-        s.step++;
-        twiml.message("When would you prefer us to contact you? (Morning, Afternoon, Evening, or specific time)");
-        break;
-      case 5:
-        s.contactTime = body;
-        s.step++;
-        twiml.message(
-          `Here’s what you entered:\n\nName: ${s.name}\nPhone: ${s.phone}\nEmail: ${s.email}\nLawyer: ${s.lawyerType}\nPreferred Time: ${s.contactTime}\n\nIs this correct? (Yes/No)`
-        );
-        break;
-      case 6:
-        if (body.toLowerCase() === "yes") {
-          twiml.message("✅ Thank you. Our team will contact you shortly.");
-        } else {
-          twiml.message("❌ Let's start again. Please enter your full name.");
-          sessions[from] = { step: 1 };
-        }
-        delete sessions[from];
-        break;
-      default:
-        twiml.message("Thank you. Our team will follow up with you soon.");
-        delete sessions[from];
-    }
+    twiml.message("✅ Thank you! Your details have been saved.");
+    delete sessions[from];
   }
 
-  res.type("text/xml");
-  res.send(twiml.toString());
+  res.type("text/xml").send(twiml.toString());
 });
 
-// Railway uses dynamic port
+// 🚀 Use Railway’s PORT instead of hardcoding
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Bot running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`🚀 Bot running on port ${PORT}`);
+});
