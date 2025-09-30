@@ -59,6 +59,7 @@ app.post("/whatsapp", (req, res) => {
 
 // 🚀 Use Railway’s PORT instead of hardcoding
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Bot running on port ${PORT}`);
 });
+
